@@ -1,4 +1,6 @@
 import * as Yup from 'yup'
+import jwt from 'jsonwebtoken'
+import authConfig from '../../config/auth'
 import User from '../models/User'
 
 class SessionController {
@@ -8,11 +10,13 @@ class SessionController {
       password: Yup.string().required(),
     })
 
-    if (!(await schema.isValid(request.body))) {
+    const userDataIncorrect = () => {
       return response
         .status(400)
         .json({ error: 'Make sure your info are correct' })
     }
+
+    if (!(await schema.isValid(request.body))) userDataIncorrect()
 
     const { email, password } = request.body
 
@@ -20,13 +24,19 @@ class SessionController {
       where: { email },
     })
 
-    if (!user) {
-      return response
-        .status(400)
-        .json({ error: 'Make sure your info are correct' })
-    }
+    if (!user) userDataIncorrect()
 
-    return response.json(user)
+    if (!(await user.checkPassword(password))) userDataIncorrect()
+
+    return response.json({
+      id: user.id,
+      email,
+      name: user.name,
+      admin: user.admin,
+      token: jwt.sign({ id: user.id }, authConfig.secret, {
+        expiresIn: authConfig.expiresIn,
+      }),
+    })
   }
 }
 
